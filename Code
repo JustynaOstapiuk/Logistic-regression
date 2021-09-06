@@ -1,0 +1,126 @@
+# wczytanie danych
+dane = read.csv("C:/Users/Justyna/Desktop/adult_sal.csv", header = T)
+# obejrzenie danych 
+View(dane)
+# W kolumnie type_employer:
+# zastapienie wpisow "Federal-gov" i "Local-gov" wpisem "SL-gov"
+# zastapienie wpisow "Self-emp-inc" i "Self-emp-not-inc" wpisem "self-emp"
+table(dane$type_employer)
+
+zmiana_p <- function(p){
+  p <- as.character(p)
+  
+  # SL-gov
+  if (p=='Federal-gov' | p=='Local-gov'){
+    return('SL-gov')
+    
+    # self-emp
+  }else if(p=='Self-emp-inc' | p=='Self-emp-not-inc'){
+    return('self-emp')
+  }else{
+    return(p)
+  }
+}
+
+dane$type_employer<-sapply(dane$type_employer,zmiana_p)
+table(dane$type_employer)
+
+# W kolumnie "marital" redukujemy liczbe wpisow do trzech (Married;Not-Married;NeverMarried)
+
+table(dane$marital)
+
+zmiana_m <- function(m){
+  m <- as.character(m)
+  
+  # Not-Married
+  if (m=='Separated' | m=='Divorced' | m=='Widowed'){
+    return('Not-Married')
+    
+    # Never-Married   
+  }else if(m=='Never-married'){
+    return(m)
+    
+    #Married
+  }else{
+    return('Married')
+  }
+}
+dane$marital<-sapply(dane$marital,zmiana_m)
+table(dane$marital)
+
+# Zmniejszenie liczby wpisow w kolumnie country - grupowanie przez kontynenty
+table(dane$country)
+
+Europa <- c('Greece', 'Portugal', 'England', 'Ireland', 'Yugoslavia', 'France', 'Hungary', 'Italy', 'Scotland', 'Germany', 'Holand-Netherlands', 'Poland')
+Ameryka_Polnocna <-  c('Canada', 'Puerto-Rico', 'United-States')
+Ameryka_Poludniowa <- c('Columbia', 'El-Salvador', 'Guatemala', 'Peru', 'Outlying-US(Guam-USVI-etc)', 'Mexico', 'Nicaragua',  'Jamaica','Trinadad&Tobago', 'Cuba','Dominican-Republic','Ecuador', 'Haiti','Honduras')
+Azja <- c('China','Hong','India','Iran','Cambodia','Japan', 'Laos', 'Philippines' ,'Vietnam' ,'Taiwan', 'Thailand')
+Pozostale_kraje <- c('South')
+
+grupowanie_k <- function(k){
+  if (k %in% Europa){
+    return('Europa')
+  }else if (k %in% Ameryka_Polnocna){
+    return('Ameryka_Polnocna')
+  }else if (k %in% Ameryka_Poludniowa){
+    return('Ameryka_Poludniowa')
+  }else if (k %in% Azja){
+    return('Azja')
+  }else{
+    return('Pozostale_kraje')
+  }
+}
+
+
+dane$country <- sapply(dane$country,grupowanie_k)
+table(dane$country)
+
+# by model glm zadzialal zamieniamy wektor na faktor (zmienna kategoryczna)
+dane$country <-factor(dane$country)
+dane$marital <- factor(dane$marital)
+dane$type_employer <- factor(dane$type_employer)
+
+# zastepujemy wpisy "?" na wartosci NA
+dane[dane == '?'] <- NA
+# View(dane)
+
+# usuwanie wierszy zawierajacych wpisy NA
+dane <- na.omit(dane)
+# View(dane)
+
+# by model glm zadzialal zamieniamy wektor na faktor (zmienna kategoryczna)
+dane$income <- factor(dane$income,levels = c(">50K","<=50K"))
+
+# podzial danych na zbior uczacy i testowy
+library(caTools)
+# dzielenie danych losowo, przypisujac wartosc logiczna do nowej kolumny probki
+set.seed(101)
+sample <- sample.split(dane$income, SplitRatio = 0.70) # 70 % "probki"
+dane_ucz <- subset(dane, sample == TRUE)
+dane_test <- subset(dane, sample == FALSE)
+
+# budowa modelu 
+model <- glm(income ~ . ,family = binomial(logit), data = dane_ucz)
+summary(model)
+# dopracowanie model za pomoca funkcji step
+nowy_model <- step(model)
+# Przetestowanie modelu na danych testowych (tablica pomylek)
+model_1 <- predict(model,dane_test,type = "response")
+result <- table(dane_test$income, model_1>0.5)
+
+# dokladnosc modelu 
+(6372 + 1423)/sum(result)
+
+# rozpoznawalnosc modelu 
+(r <- 6372/(6372+872))
+
+# precyzja modelu 
+(p <- 6372/(6372+548))
+
+# F1-score dla opracowanego modelu
+(F1 <- 2*p*r/(p+r))
+
+# Podsumowując, uzyskany model regresji logistycznej wykazuje 
+# dokładnośc na na poziomie 0,85. Precyzja i rozpoznawalność modelu 
+# to odpowiednio około 0,92 i 0,88. Wynik F1 wynosi około 0,9. Można 
+# uznać, że model ma stosunkowo dobrą prognozę.
